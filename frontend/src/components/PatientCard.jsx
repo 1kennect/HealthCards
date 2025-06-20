@@ -144,27 +144,6 @@ function PatientCard({ patient, onUpdate, onDragStart, onDragOver, onDrop, onDra
           <span className="info-label">Arrival:</span>
           <span className="info-value">{formatTime(patient.arrival_time)}</span>
         </div>
-        <div className="info-row">
-          <span className="info-label">Priority Score:</span>
-          <span className="info-value">
-            {isEditing ? (
-              <input
-                type="number"
-                min="1"
-                max="5"
-                step="0.1"
-                value={editData.priority_score || 0}
-                onChange={(e) => setEditData({ ...editData, priority_score: parseFloat(e.target.value) || 0 })}
-                className="form-input"
-                style={{ width: '80px', textAlign: 'center' }}
-              />
-            ) : (
-              <span style={{ fontWeight: '600', color: '#667eea' }}>
-                {patient.priority_score.toFixed(1)}
-              </span>
-            )}
-          </span>
-        </div>
       </div>
 
       <div className="symptoms">

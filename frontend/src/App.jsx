@@ -267,7 +267,6 @@ function App() {
       <div className="main-content">
         <div className="active-patients">
           <h3>Active Patients ({sortedPatients.length})</h3>
-          <div className="drag-hint">Drag patients here to reactivate them</div>
           <div 
             className="priority-queue"
             onDragOver={(e) => {
@@ -333,26 +332,12 @@ function App() {
             onDragOver={(e) => {
               e.preventDefault()
               e.dataTransfer.dropEffect = 'move'
-              e.currentTarget.style.borderColor = '#28a745'
-              e.currentTarget.style.backgroundColor = 'rgba(40, 167, 69, 0.15)'
-            }}
-            onDragLeave={(e) => {
-              e.currentTarget.style.borderColor = 'transparent'
-              e.currentTarget.style.backgroundColor = 'transparent'
             }}
             onDrop={(e) => {
               e.preventDefault()
-              e.currentTarget.style.borderColor = 'transparent'
-              e.currentTarget.style.backgroundColor = 'transparent'
               const patientId = e.dataTransfer.getData('text/plain')
               if (patientId) {
-                // Check if it's a completed patient being reactivated
-                if (completedPatients.find(p => p.id === patientId)) {
-                  handleReactivatePatient(patientId)
-                } else {
-                  // It's an active patient being completed
-                  handleCompletePatient(patientId)
-                }
+                handleReactivatePatient(patientId)
               }
             }}
           >
