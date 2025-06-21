@@ -527,9 +527,79 @@ body {
   margin-top: 20px;
 }
 
+.active-patients-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.ordering-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toggle-label {
+  font-size: 0.9rem;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.4s;
+  border-radius: 24px;
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.4s;
+  border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+  background-color: #28a745;
+}
+
+input:focus + .toggle-slider {
+  box-shadow: 0 0 1px #28a745;
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(26px);
+}
+
+/* Active Patients Section */
 .active-patients h3,
 .completed-patients h3 {
-  margin-bottom: 20px;
+  margin-bottom: 0;
   color: #2c3e50;
   font-size: 1.3rem;
   font-weight: 600;
@@ -553,12 +623,66 @@ body {
   padding: 10px;
   border: 2px dashed transparent;
   border-radius: 8px;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background-color 0.2s;
 }
 
 .completed-queue:has(.completed-card:hover) {
   border-color: #28a745;
   background: rgba(40, 167, 69, 0.05);
+}
+
+/* Completed Content Structure */
+.completed-content {
+  position: relative;
+  min-height: 200px;
+}
+
+.completed-cards-overlay {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 20px;
+}
+
+.completed-cards-overlay .completed-card {
+  pointer-events: auto;
+}
+
+/* Empty Completed Zone */
+.empty-completed-zone {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6c757d;
+  background: linear-gradient(135deg, rgba(40, 167, 69, 0.1) 0%, rgba(40, 167, 69, 0.05) 100%);
+  border: 3px dashed #28a745;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.empty-completed-zone:hover {
+  background: linear-gradient(135deg, rgba(40, 167, 69, 0.15) 0%, rgba(40, 167, 69, 0.1) 100%);
+  border-color: #20c997;
+}
+
+.empty-completed-zone .complete-icon {
+  font-size: 2.5rem;
+  color: #28a745;
+  margin-bottom: 15px;
+  font-weight: bold;
+}
+
+.empty-completed-zone h4 {
+  color: #28a745;
+  font-size: 1.3rem;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.empty-completed-zone p {
+  color: #6c757d;
+  font-size: 0.9rem;
+  margin: 0;
 }
 
 .completed-card {

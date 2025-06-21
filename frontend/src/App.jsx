@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import PatientCard from './components/PatientCard'
 import AddPatient from './components/AddPatient'
 
@@ -9,6 +9,9 @@ function App() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [draggedIndex, setDraggedIndex] = useState(null)
   const [dragOverIndex, setDragOverIndex] = useState(null)
+  const [draggedPatientId, setDraggedPatientId] = useState(null)
+  const [isDraggingFromCompleted, setIsDraggingFromCompleted] = useState(false)
+  const [orderingMode, setOrderingMode] = useState('automatic') // 'manual' or 'automatic'
   const [chatInput, setChatInput] = useState('')
   const [isProcessingChat, setIsProcessingChat] = useState(false)
   const [completedPatients, setCompletedPatients] = useState([])
@@ -80,40 +83,76 @@ function App() {
   }
 
   // Drag and drop handlers
-  const handleDragStart = (index) => {
+  const handleDragStart = (e, index) => {
+    console.log('Drag start:', index)
     setDraggedIndex(index)
+    setDraggedPatientId(patients[index].id)
+    setIsDraggingFromCompleted(false)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/html', e.target.outerHTML)
   }
 
-  const handleDragOver = (index) => {
-    if (draggedIndex !== null && draggedIndex !== index) {
+  const handleDragOver = (e, index) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    // Only allow reordering in manual mode
+    if (orderingMode === 'manual' && draggedIndex !== null && draggedIndex !== index) {
       setDragOverIndex(index)
     }
   }
 
-  const handleDrop = (draggedIndex, dropIndex) => {
-    if (draggedIndex === dropIndex) {
-      setDraggedIndex(null)
-      setDragOverIndex(null)
-      return
-    }
-
-    const newPatients = [...patients]
-    const draggedPatient = newPatients[draggedIndex]
-    
-    // Remove the dragged item
-    newPatients.splice(draggedIndex, 1)
-    
-    // Insert at the new position
-    newPatients.splice(dropIndex, 0, draggedPatient)
-    
-    setPatients(newPatients)
-    setDraggedIndex(null)
+  const handleDragLeave = (e) => {
+    e.preventDefault()
     setDragOverIndex(null)
   }
 
-  const handleDragEnd = () => {
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault()
+    console.log('Drop at index:', dropIndex, 'from dragged index:', draggedIndex)
+    
+    // Only allow reordering in manual mode
+    if (orderingMode === 'manual' && draggedIndex !== null && draggedIndex !== dropIndex) {
+      try {
+        setPatients(prevPatients => {
+          const newPatients = [...prevPatients]
+          const draggedPatient = newPatients[draggedIndex]
+          
+          // Remove from original position
+          newPatients.splice(draggedIndex, 1)
+          
+          // Insert at new position
+          newPatients.splice(dropIndex, 0, draggedPatient)
+          
+          console.log('Reordered patients:', newPatients)
+          return newPatients
+        })
+      } catch (error) {
+        console.error('Error reordering patients:', error)
+      }
+    }
+    
+    // Reset drag state
     setDraggedIndex(null)
     setDragOverIndex(null)
+    setDraggedPatientId(null)
+    setIsDraggingFromCompleted(false)
+  }
+
+  const handleDragEnd = (e) => {
+    console.log('Drag end')
+    setDraggedIndex(null)
+    setDragOverIndex(null)
+    setDraggedPatientId(null)
+    setIsDraggingFromCompleted(false)
+  }
+
+  // Global drag end handler to catch any missed drag end events
+  const handleGlobalDragEnd = () => {
+    // Small delay to ensure all drag operations are complete
+    setTimeout(() => {
+      setDraggedIndex(null)
+      setDragOverIndex(null)
+    }, 100)
   }
 
   // Generate patient from chat
@@ -136,25 +175,88 @@ function App() {
       
       // Remove from active list
       setPatients(prev => prev.filter(p => p.id !== patientId))
+      
+      // Reset drag state
+      setDraggedIndex(null)
+      setDragOverIndex(null)
     }
   }
 
   // Reactivate patient (move from completed back to active)
   const handleReactivatePatient = (patientId) => {
+    console.log('handleReactivatePatient called with:', patientId)
+    
+    // Safety check - ensure patientId is valid
+    if (!patientId) {
+      console.error('Invalid patient ID provided')
+      setDraggedIndex(null)
+      setDragOverIndex(null)
+      return
+    }
+    
     const patientToReactivate = completedPatients.find(p => p.id === patientId)
+    console.log('Found patient to reactivate:', patientToReactivate)
+    
     if (patientToReactivate) {
-      // Remove completion timestamp
-      const reactivatedPatient = {
-        ...patientToReactivate,
-        completed_at: undefined
+      try {
+        // Create a clean copy of the patient without completion data
+        const reactivatedPatient = {
+          id: patientToReactivate.id,
+          name: patientToReactivate.name || 'Unknown Patient',
+          age: patientToReactivate.age || 0,
+          gender: patientToReactivate.gender || '',
+          symptoms: patientToReactivate.symptoms || '',
+          vitals: patientToReactivate.vitals || {},
+          medical_history: patientToReactivate.medical_history || '',
+          arrival_time: patientToReactivate.arrival_time || new Date().toISOString(),
+          priority_score: patientToReactivate.priority_score || 0,
+          priority_level: patientToReactivate.priority_level || 'Low'
+        }
+        
+        console.log('Reactivated patient:', reactivatedPatient)
+        
+        // Move back to active list - add to the end to avoid reordering issues
+        setPatients(prev => {
+          // Safety check - ensure prev is an array
+          if (!Array.isArray(prev)) {
+            console.error('Previous patients state is not an array:', prev)
+            return [reactivatedPatient]
+          }
+          
+          const newPatients = [...prev, reactivatedPatient]
+          console.log('New patients array:', newPatients)
+          return newPatients
+        })
+        
+        // Remove from completed list
+        setCompletedPatients(prev => {
+          // Safety check - ensure prev is an array
+          if (!Array.isArray(prev)) {
+            console.error('Previous completed patients state is not an array:', prev)
+            return []
+          }
+          
+          const newCompleted = prev.filter(p => p.id !== patientId)
+          console.log('New completed array:', newCompleted)
+          return newCompleted
+        })
+        
+        console.log('Patient reactivated successfully')
+        
+        // Reset drag state
+        setDraggedIndex(null)
+        setDragOverIndex(null)
+      } catch (error) {
+        console.error('Error reactivating patient:', error)
+        // Reset drag state even if there's an error
+        setDraggedIndex(null)
+        setDragOverIndex(null)
       }
-      delete reactivatedPatient.completed_at
-      
-      // Move back to active list
-      setPatients(prev => [...prev, reactivatedPatient])
-      
-      // Remove from completed list
-      setCompletedPatients(prev => prev.filter(p => p.id !== patientId))
+    } else {
+      console.error('Patient not found in completed list:', patientId)
+      // Reset drag state
+      setDraggedIndex(null)
+      setDragOverIndex(null)
     }
   }
 
@@ -195,8 +297,16 @@ function App() {
     }
   }
 
-  // Sort patients by priority score (highest first) - only if not manually reordered
-  const sortedPatients = [...patients].sort((a, b) => b.priority_score - a.priority_score)
+  // Order patients based on current mode
+  const orderedPatients = useMemo(() => {
+    if (orderingMode === 'automatic') {
+      // Sort by priority score (highest first)
+      return [...patients].sort((a, b) => b.priority_score - a.priority_score)
+    } else {
+      // Manual ordering - keep current order
+      return patients
+    }
+  }, [patients, orderingMode])
 
   const getPriorityClass = (level) => {
     const levelLower = level.toLowerCase()
@@ -209,7 +319,28 @@ function App() {
 
   useEffect(() => {
     fetchPatients()
+    
+    // Add global drag end handler
+    document.addEventListener('dragend', handleGlobalDragEnd)
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('dragend', handleGlobalDragEnd)
+    }
   }, [])
+
+  // Safety check for state
+  if (!Array.isArray(patients)) {
+    console.error('Patients state is not an array:', patients)
+    setPatients([])
+    return <div>Loading...</div>
+  }
+
+  if (!Array.isArray(completedPatients)) {
+    console.error('Completed patients state is not an array:', completedPatients)
+    setCompletedPatients([])
+    return <div>Loading...</div>
+  }
 
   if (loading) {
     return (
@@ -266,7 +397,22 @@ function App() {
 
       <div className="main-content">
         <div className="active-patients">
-          <h3>Active Patients ({sortedPatients.length})</h3>
+          <div className="active-patients-header">
+            <h3>Active Patients ({orderedPatients.length})</h3>
+            <div className="ordering-toggle">
+              <label className="toggle-switch">
+                <input
+                  type="checkbox"
+                  checked={orderingMode === 'automatic'}
+                  onChange={(e) => setOrderingMode(e.target.checked ? 'automatic' : 'manual')}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+              <span className="toggle-label">
+                {orderingMode === 'automatic' ? 'Auto (Priority)' : 'Manual (Drag)'}
+              </span>
+            </div>
+          </div>
           <div 
             className="priority-queue"
             onDragOver={(e) => {
@@ -283,20 +429,29 @@ function App() {
               e.preventDefault()
               e.currentTarget.style.borderColor = 'transparent'
               e.currentTarget.style.backgroundColor = 'transparent'
-              const patientId = e.dataTransfer.getData('text/plain')
-              if (patientId) {
-                handleReactivatePatient(patientId)
+              const data = e.dataTransfer.getData('text/plain')
+              console.log('Drop data:', data)
+              if (data) {
+                // Check if it's a patient ID from completed patients (for reactivation)
+                const patientId = data
+                const isFromCompleted = completedPatients.find(p => p.id === patientId)
+                console.log('Is from completed:', isFromCompleted)
+                if (isFromCompleted) {
+                  // This is a patient being reactivated from completed
+                  console.log('Reactivating patient:', patientId)
+                  handleReactivatePatient(patientId)
+                }
               }
             }}
           >
-            {sortedPatients.length === 0 ? (
+            {orderedPatients.length === 0 ? (
               <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#6c757d' }}>
                 No patients in queue. Add a patient to get started.
               </div>
             ) : (
-              sortedPatients.map((patient, index) => (
+              orderedPatients.map((patient, index) => (
                 <React.Fragment key={patient.id}>
-                  {dragOverIndex === index && draggedIndex !== null && draggedIndex !== index && (
+                  {orderingMode === 'manual' && dragOverIndex === index && draggedIndex !== null && draggedIndex !== index && (
                     <div 
                       className="drop-indicator"
                       style={{
@@ -312,12 +467,13 @@ function App() {
                     patient={patient}
                     index={index}
                     onUpdate={updatePatient}
-                    onDragStart={handleDragStart}
-                    onDragOver={handleDragOver}
-                    onDrop={handleDrop}
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, index)}
                     onDragEnd={handleDragEnd}
-                    onComplete={handleCompletePatient}
                     isDragging={draggedIndex === index}
+                    orderingMode={orderingMode}
                   />
                 </React.Fragment>
               ))
@@ -329,59 +485,128 @@ function App() {
           <h3>Completed ({completedPatients.length})</h3>
           <div 
             className="completed-queue"
+            onDragEnter={(e) => {
+              e.preventDefault()
+              console.log('Drag enter on completed queue')
+            }}
             onDragOver={(e) => {
               e.preventDefault()
               e.dataTransfer.dropEffect = 'move'
+              console.log('Drag over on completed queue, draggedPatientId:', draggedPatientId)
+              
+              if (draggedPatientId) {
+                const isFromCompleted = completedPatients.find(p => p.id === draggedPatientId)
+                console.log('Is from completed:', isFromCompleted)
+                if (isFromCompleted) {
+                  // Highlight for reactivation
+                  e.currentTarget.style.borderColor = '#667eea'
+                  e.currentTarget.style.backgroundColor = 'rgba(102, 126, 234, 0.1)'
+                } else {
+                  // Highlight for completion - show the green background
+                  e.currentTarget.style.borderColor = '#28a745'
+                  e.currentTarget.style.backgroundColor = 'rgba(40, 167, 69, 0.1)'
+                }
+              } else {
+                // If no draggedPatientId, assume it's an active patient being completed
+                e.currentTarget.style.borderColor = '#28a745'
+                e.currentTarget.style.backgroundColor = 'rgba(40, 167, 69, 0.1)'
+              }
+            }}
+            onDragLeave={(e) => {
+              e.preventDefault()
+              console.log('Drag leave on completed queue')
+              e.currentTarget.style.borderColor = 'transparent'
+              e.currentTarget.style.backgroundColor = 'transparent'
             }}
             onDrop={(e) => {
               e.preventDefault()
-              const patientId = e.dataTransfer.getData('text/plain')
-              if (patientId) {
-                handleReactivatePatient(patientId)
+              console.log('Drop on completed queue, draggedPatientId:', draggedPatientId)
+              e.currentTarget.style.backgroundColor = 'transparent'
+              e.currentTarget.style.borderColor = 'transparent'
+              
+              if (draggedPatientId) {
+                // Check if it's a patient ID from active patients (for completion) or completed patients (for reactivation)
+                const isFromCompleted = completedPatients.find(p => p.id === draggedPatientId)
+                console.log('Is from completed:', isFromCompleted)
+                if (isFromCompleted) {
+                  // This is a patient being reactivated from completed
+                  console.log('Reactivating patient:', draggedPatientId)
+                  handleReactivatePatient(draggedPatientId)
+                } else {
+                  // This is a patient being completed from active
+                  console.log('Completing patient:', draggedPatientId)
+                  handleCompletePatient(draggedPatientId)
+                }
               }
+              
+              // Reset drag state
+              setDraggedIndex(null)
+              setDragOverIndex(null)
+              setDraggedPatientId(null)
+              setIsDraggingFromCompleted(false)
             }}
           >
             {completedPatients.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px', color: '#6c757d' }}>
-                No completed patients yet.
+              <div className="empty-completed-zone">
+                <div className="complete-icon">✓</div>
+                <h4>Complete Patients</h4>
+                <p>Drag active patients here to mark them as complete</p>
               </div>
             ) : (
-              completedPatients.map((patient, index) => (
-                <div 
-                  key={patient.id} 
-                  className="completed-card"
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('text/plain', patient.id)
-                    e.dataTransfer.effectAllowed = 'move'
-                  }}
-                  style={{ cursor: 'grab' }}
-                >
-                  <div className="completed-card-header">
-                    <div className="completed-patient-name">{patient.name || 'Unknown Patient'}</div>
-                    <div className="completion-time">
-                      {new Date(patient.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              <div className="completed-content">
+                <div className="completed-cards-overlay">
+                  {completedPatients.map((patient, index) => (
+                    <div 
+                      key={patient.id} 
+                      className="completed-card"
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', patient.id)
+                        e.dataTransfer.effectAllowed = 'move'
+                        e.currentTarget.style.opacity = '0.5'
+                        e.currentTarget.style.transform = 'scale(0.95)'
+                        setDraggedPatientId(patient.id)
+                        setIsDraggingFromCompleted(true)
+                        console.log('Drag start - patient ID:', patient.id)
+                      }}
+                      onDragEnd={(e) => {
+                        e.currentTarget.style.opacity = '1'
+                        e.currentTarget.style.transform = 'scale(1)'
+                        // Reset drag state
+                        setDraggedIndex(null)
+                        setDragOverIndex(null)
+                        setDraggedPatientId(null)
+                        setIsDraggingFromCompleted(false)
+                      }}
+                      style={{ cursor: 'grab' }}
+                    >
+                      <div className="completed-card-header">
+                        <div className="completed-patient-name">{patient.name || 'Unknown Patient'}</div>
+                        <div className="completion-time">
+                          {new Date(patient.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                      <div className="completed-card-details">
+                        <div className="completed-info">
+                          <span>{patient.age} years old</span>
+                          <span>•</span>
+                          <span>{patient.gender || 'Not specified'}</span>
+                          <span>•</span>
+                          <span className={`completed-priority ${getPriorityClass(patient.priority_level)}`}>
+                            {patient.priority_level}
+                          </span>
+                        </div>
+                        <div className="completed-symptoms">
+                          {patient.symptoms || 'No symptoms recorded'}
+                        </div>
+                      </div>
+                      <div className="completed-card-hint">
+                        Drag back to reactivate
+                      </div>
                     </div>
-                  </div>
-                  <div className="completed-card-details">
-                    <div className="completed-info">
-                      <span>{patient.age} years old</span>
-                      <span>•</span>
-                      <span>{patient.gender || 'Not specified'}</span>
-                      <span>•</span>
-                      <span className={`completed-priority ${getPriorityClass(patient.priority_level)}`}>
-                        {patient.priority_level}
-                      </span>
-                    </div>
-                    <div className="completed-symptoms">
-                      {patient.symptoms || 'No symptoms recorded'}
-                    </div>
-                  </div>
-                  <div className="completed-card-hint">
-                    Drag back to reactivate
-                  </div>
+                  ))}
                 </div>
-              ))
+              </div>
             )}
           </div>
         </div>

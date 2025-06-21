@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-function PatientCard({ patient, onUpdate, onDragStart, onDragOver, onDrop, onDragEnd, onComplete, index, isDragging }) {
+function PatientCard({ patient, onUpdate, onDragStart, onDragOver, onDrop, onDragEnd, index, isDragging, orderingMode }) {
   const [isEditing, setIsEditing] = useState(false)
   const [editData, setEditData] = useState({ ...patient })
 
@@ -33,21 +33,22 @@ function PatientCard({ patient, onUpdate, onDragStart, onDragOver, onDrop, onDra
   }
 
   const handleDragStart = (e) => {
-    e.dataTransfer.setData('text/plain', index.toString())
+    console.log('PatientCard drag start - patient ID:', patient.id)
+    e.dataTransfer.setData('text/plain', patient.id)
     e.dataTransfer.effectAllowed = 'move'
-    onDragStart(index)
+    console.log('Data transfer set to:', e.dataTransfer.getData('text/plain'))
+    onDragStart(e, index)
   }
 
   const handleDragOver = (e) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
-    onDragOver(index)
+    onDragOver(e, index)
   }
 
   const handleDrop = (e) => {
     e.preventDefault()
-    const draggedIndex = parseInt(e.dataTransfer.getData('text/plain'))
-    onDrop(draggedIndex, index)
+    onDrop(e, index)
   }
 
   const priorityClass = getPriorityClass(patient.priority_level)
@@ -82,7 +83,7 @@ function PatientCard({ patient, onUpdate, onDragStart, onDragOver, onDrop, onDra
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {!isEditing && (
+          {!isEditing && orderingMode === 'manual' && (
             <div 
               className="drag-handle"
               style={{
@@ -287,38 +288,21 @@ function PatientCard({ patient, onUpdate, onDragStart, onDragOver, onDrop, onDra
             </button>
           </>
         ) : (
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={() => setIsEditing(true)}
-              style={{
-                flex: 1,
-                fontSize: '0.9rem',
-                padding: '8px',
-                background: '#667eea',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer'
-              }}
-            >
-              Edit Patient
-            </button>
-            <button
-              onClick={() => onComplete(patient.id)}
-              style={{
-                fontSize: '0.9rem',
-                padding: '8px 12px',
-                background: '#28a745',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              Complete
-            </button>
-          </div>
+          <button
+            onClick={() => setIsEditing(true)}
+            style={{
+              width: '100%',
+              fontSize: '0.9rem',
+              padding: '8px',
+              background: '#667eea',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
+          >
+            Edit Patient
+          </button>
         )}
       </div>
     </div>
